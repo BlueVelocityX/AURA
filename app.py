@@ -1,22 +1,22 @@
 import os
-import asyncio # Needed for safe threading
 from flask import Flask, render_template_string
 import threading
 from bot_logic import bot 
 from admin_dashboard import admin_bp 
+import asyncio # Must be imported for thread setup
 
 app = Flask(__name__)
 
 # Register the admin blueprint and protect it behind the /admin URL prefix.
 app.register_blueprint(admin_bp, url_prefix='/admin')
 
-# --- START BOT IN A SEPARate THREAD (For 24/7 Hosting on Render) ---
+# --- START BOT IN A SEPARATE THREAD (For 24/7 Hosting) ---
 
 def start_discord_bot():
     """
     Function to run the Discord bot's blocking client method safely in a thread.
     """
-    print("--- AURA Operational AI: Starting Discord Bot Thread -----")
+    print("--- Aura Hangout: Starting Discord Bot Thread -----")
     try:
         # 1. Create a new event loop for this thread
         loop = asyncio.new_event_loop()
@@ -28,161 +28,139 @@ def start_discord_bot():
     except Exception as e:
         print(f"FATAL ERROR IN DISCORD BOT THREAD: {e}")
 
-print("--- Gunicorn Worker Booted, Initiating AURA Startup ---")
+
+print("--- Gunicorn Worker Booted, Initiating Bot Startup ---")
+# The bot runs in a background thread to prevent blocking the Flask web server.
 discord_thread = threading.Thread(target=start_discord_bot)
-# Make the thread a daemon so it doesn't prevent the web server from closing when Gunicorn shuts down
 discord_thread.daemon = True 
 discord_thread.start()
 
 
-# --- FLASK WEB SERVER (AURA Status Landing Page) ---
+# --- FLASK WEB SERVER ROUTES ---
+
+# Replace with your actual external links
+EXTERNAL_LINKS = [
+    {"name": "Guestbook (House Rules)", "url": "#"},
+    {"name": "Utility Shed (!commands)", "url": "#"},
+    {"name": "Invite a Friend", "url": "#"},
+]
+
+def get_discord_invite_link():
+    """Dummy function to provide a mock invite link for the template."""
+    # In a real app, this would be retrieved dynamically if available, or just a known link
+    return "https://discord.gg/your-invite-link"
 
 @app.route('/')
 def home():
-    """
-    The member-facing landing page for the AURA system status.
-    """
+    """The public landing page for the Hangout."""
     
-    # NOTE: Update this link to your actual server invite.
-    DISCORD_INVITE_LINK = "https://discord.gg/YOURINVITELINK" 
-    
-    is_online = bot.is_ready()
-    status_text = "Operational" if is_online else "Standby Mode"
-    status_color = "bg-green-500" if is_online else "bg-yellow-500"
-    
-    # Placeholder links for community platforms. Update these!
-    AURA_LINKS = [
-        {"name": "Command Center Website", "url": "https://yourwebsite.com"},
-        {"name": "External Platform Alpha", "url": "https://external.com/alpha"},
-        {"name": "External Platform Beta", "url": "https://external.com/beta"},
-    ]
-    
+    # Check if the bot is ready
+    if bot.is_ready():
+        status_text = "Online and Cozy"
+        status_color = "bg-green-500"
+    else:
+        status_text = "Tuning In..."
+        status_color = "bg-yellow-500"
+        
+    invite_link = get_discord_invite_link()
+
     html_content = f"""
     <!DOCTYPE html>
     <html lang="en">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>AURA Operational AI - Status</title>
+        <title>The Treehouse Hangout</title>
+        <!-- Load Tailwind CSS -->
         <script src="https://cdn.tailwindcss.com"></script>
         <style>
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
-            
-            /* Sci-Fi Blue Theme */
             :root {{
-                --bg-color: #0d1117;
-                --card-bg: #161b22;
-                --primary-action: #58a6ff;
-                --text-color: #e6edf3;
+                --background-color: #1a1a2e; /* Dark, cozy night sky */
+                --text-color: #e0e0f0; /* Soft light text */
+                --primary-color: #a8dadc; /* Soft cyan/mint for highlights */
+                --primary-action: #457b9d; /* Deeper blue for main buttons */
+                --danger-color: #e63946; /* Red for warnings/bans */
+                --font-inter: 'Inter', sans-serif;
             }}
-            
-            body {{ 
-                font-family: 'Inter', sans-serif; 
-                background-color: var(--bg-color); 
+            body {{
+                font-family: var(--font-inter);
+                background-color: var(--background-color);
+                color: var(--text-color);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                min-height: 100vh;
+                padding: 1rem;
             }}
-            
+            .card {{
+                background-color: rgba(36, 36, 58, 0.8); /* Darker, transparent base for card */
+                backdrop-filter: blur(5px);
+                border: 2px solid var(--primary-color);
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.5);
+            }}
             .btn-primary {{
                 background-color: var(--primary-action);
-                color: #ffffff;
+                transition: background-color 0.2s;
             }}
             .btn-primary:hover {{
-                background-color: #4b88cc;
-            }}
-
-            /* Scrolling Marquee CSS */
-            .marquee-container {{
-                overflow: hidden;
-                white-space: nowrap;
-                width: 100%;
-                margin-bottom: 1rem;
-                border-bottom: 2px solid #2d2d2d;
-                padding-bottom: 0.5rem;
-            }}
-            .marquee-text {{
-                display: inline-block;
-                padding-left: 100%;
-                animation: marquee 20s linear infinite;
-                font-size: 1.5rem;
-                font-weight: 700;
-                color: #374151; 
-            }}
-            @keyframes marquee {{
-                0%   {{ transform: translate(0, 0); }}
-                100% {{ transform: translate(-100%, 0); }}
+                background-color: #2a5a75;
             }}
         </style>
     </head>
-    <body class="min-h-screen flex items-center justify-center p-4">
-        <div class="max-w-xl w-full bg-[var(--card-bg)] text-white p-8 md:p-10 rounded-xl shadow-2xl border-t-8 border-[var(--primary-action)] space-y-8">
+    <body>
+        <div class="card p-8 sm:p-10 max-w-lg w-full rounded-xl space-y-8">
             
-            <div class="marquee-container">
-                <div class="marquee-text">AURA OPERATIONAL AI | SYSTEM STATUS | COMMAND ONLINE |</div>
-            </div>
-
+            <!-- Header & Status -->
             <div class="text-center space-y-3">
                 <h1 class="text-4xl font-extrabold text-[var(--primary-action)] tracking-tight">
-                    AURA OPERATIONAL AI
+                    THE TREEHOUSE HANGOUT
                 </h1>
                 <p class="text-xl text-gray-300">
-                    The core system designated to maintain Command integrity.
+                    Your personal space to chill and connect.
                 </p>
                 <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium {status_color} text-white">
                     <svg class="w-2 h-2 mr-1.5" fill="currentColor" viewBox="0 0 8 8">
                         <circle cx="4" cy="4" r="3" />
                     </svg>
-                    System Status: {status_text}
+                    Aura Status: {status_text}
                 </span>
             </div>
 
+            <!-- Join Button -->
             <div class="text-center">
-                <a href="{DISCORD_INVITE_LINK}" target="_blank"
-                   class="inline-block w-full sm:w-auto px-8 py-3 text-lg font-bold rounded-lg transition duration-300 btn-primary shadow-xl">
-                    Connect to Server Network 🌐
+                <a href="{invite_link}" target="_blank" class="btn-primary inline-flex items-center justify-center w-full sm:w-auto px-6 py-3 border border-transparent text-base font-medium rounded-lg shadow-lg text-white hover:shadow-xl transition duration-150 ease-in-out">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20v-2c0-.656-.126-1.283-.356-1.857M17 20h-2m0 0h-2M4 12v-2a3 3 0 014-3h10a3 3 0 014 3v2m-19 2h2.238l.608 1.127a1 1 0 001.764 0l.608-1.127H20M5 16h14" />
+                    </svg>
+                    Climb Up to the Treehouse!
                 </a>
             </div>
-            
-            <hr class="border-gray-700">
 
-            <div class="space-y-4">
-                <h2 class="text-2xl font-semibold text-gray-200">🛡️ Protocol Enforcement</h2>
-                <ul class="space-y-3 text-gray-400">
-                    <li class="flex items-start">
-                        <span class="text-[var(--primary-action)] mr-2 mt-0.5">📜</span>
-                        <p><strong>Total Accountability:</strong> All staff actions are logged to the **Permanent Record** for security audits.</p>
-                    </li>
-                    <li class="flex items-start">
-                        <span class="text-[var(--primary-action)] mr-2 mt-0.5">🔨</span>
-                        <p><strong>Auto-Eviction Enforcement:</strong> The system automatically blocks attempts to evade permanent blacklisting.</p>
-                    </li>
-                </ul>
-            </div>
-            
-            <hr class="border-gray-700">
-            
-            <div class="space-y-4">
-                <h2 class="text-2xl font-semibold text-gray-200">🔗 Auxiliary Systems</h2>
-                <ul class="space-y-3 text-gray-400">
-                    {
-                        ''.join([
-                            f"""
-                            <li class="flex justify-between items-center bg-gray-700/30 p-3 rounded-lg">
-                                <span class="font-medium text-white">{link['name']}</span>
-                                <a href="{link['url']}" target="_blank" class="text-[var(--primary-action)] hover:underline">
-                                    Access System &rarr;
-                                </a>
-                            </li>
-                            """ for link in AURA_LINKS
-                        ])
-                    }
+            <!-- Quick Links -->
+            <div class="pt-4">
+                <h3 class="text-lg font-semibold border-b border-gray-700 pb-2 mb-4 text-gray-200">Quick Links</h3>
+                <ul class="space-y-2">
+                    {[
+                        (link for link in EXTERNAL_LINKS) 
+                    ].map(link => `
+                        <li>
+                            <a href="${link.url}" target="_blank" class="flex items-center text-gray-400 hover:text-[var(--primary-color)] transition">
+                                <span class="mr-2 text-[var(--primary-color)]">•</span>
+                                ${link.name}
+                            </a>
+                        </li>
+                    `).join('')}
                 </ul>
             </div>
 
+
             <hr class="border-gray-700">
 
+            <!-- Legal and Important Notice -->
             <div class="text-center text-sm text-gray-500 space-y-2">
-                <p>
-                    <a href="/admin" class="hover:text-[var(--primary-action)] transition text-gray-600 font-medium border-b border-dotted border-gray-600">Root Access Terminal Login</a>
-                </p>
+                <p class="text-gray-400 font-bold">Aura (The Caretaker) is running the server operations.</p>
+                <!-- Admin link is discreetly placed for staff access -->
+                <p>Host Access: <a href="/admin" class="hover:text-[var(--primary-action)] transition text-gray-600 font-medium border-b border-dotted border-gray-600">Caretaker Log-in</a></p>
             </div>
             
         </div>
@@ -193,9 +171,9 @@ def home():
     return render_template_string(html_content)
 
 if __name__ == '__main__':
-    # For local testing only
+    # This block is for local testing only
     if os.getenv('DISCORD_BOT_TOKEN'):
         print("Running Flask server locally...")
         app.run(host='0.0.0.0', port=os.environ.get('PORT', 5000))
     else:
-        print("ERROR: DISCORD_BOT_TOKEN environment variable not set. Please set it for local testing.")
+        print("ERROR: DISCORD_BOT_TOKEN not set. Cannot start bot thread.")
