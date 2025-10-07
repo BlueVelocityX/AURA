@@ -1,0 +1,6 @@
+discord.py
+Flask
+gunicorn
+Flask-HTTPAuth
+Flask-JSONRPC
+python-dotenv
