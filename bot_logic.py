@@ -29,8 +29,8 @@ MUTED_ROLE_NAME = 'Time-Out' # Your mute role
 STAFF_ROLE_NAME = 'Co-Host' # Role that should have access to mod commands/flags
 
 # Channel IDs (PLACEHOLDERS - MUST BE UPDATED TO YOUR SERVER'S IDs)
-MOD_ALERT_CHANNEL_ID = 123456789012345678 # Your alert channel (where !flag goes)
-WELCOME_CHANNEL_ID = 123456789012345679 # Channel where the welcome message is sent
+MOD_ALERT_CHANNEL_ID = 1424585869909819392 # Your alert channel (where !flag goes)
+WELCOME_CHANNEL_ID = 1424581257081262172 # Channel where the welcome message is sent
 
 # Gemini API Endpoint
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent"
