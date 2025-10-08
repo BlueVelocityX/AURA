@@ -1,9 +1,17 @@
 import os
 from flask import Flask, render_template_string
 import threading
+import asyncio # <-- Added missing import
 from bot_logic import bot 
 from admin_dashboard import admin_bp 
-import asyncio # Must be imported for thread setup
+
+# --- CONFIGURATION ---
+# Example social links used in the landing page template
+DISCORD_SOCIAL_LINKS = [
+    ("Twitter", "https://twitter.com/YourHandle"),
+    ("Instagram", "https://instagram.com/YourHandle"),
+    ("Patreon", "https://patreon.com/YourPage")
+]
 
 app = Flask(__name__)
 
@@ -15,141 +23,135 @@ app.register_blueprint(admin_bp, url_prefix='/admin')
 def start_discord_bot():
     """
     Function to run the Discord bot's blocking client method safely in a thread.
+    
+    NOTE: This uses bot.start/loop.run_until_complete to safely run the bot in 
+    a separate thread, avoiding the fatal "RuntimeError: can't register atexit after shutdown".
     """
-    print("--- Aura Hangout: Starting Discord Bot Thread -----")
+    print("--- Aura Manager: Starting Discord Bot Thread -----")
     try:
         # 1. Create a new event loop for this thread
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         
         # 2. Use bot.start() to run the bot and run_until_complete to block the thread
-        loop.run_until_complete(bot.start(os.getenv('DISCORD_BOT_TOKEN'), reconnect=True))
+        token = os.getenv('DISCORD_BOT_TOKEN')
+        if not token:
+            print("ERROR: DISCORD_BOT_TOKEN is missing. Bot will not start.")
+            return
+
+        loop.run_until_complete(bot.start(token, reconnect=True))
 
     except Exception as e:
         print(f"FATAL ERROR IN DISCORD BOT THREAD: {e}")
 
-
 print("--- Gunicorn Worker Booted, Initiating Bot Startup ---")
-# The bot runs in a background thread to prevent blocking the Flask web server.
-discord_thread = threading.Thread(target=start_discord_bot)
-discord_thread.daemon = True 
-discord_thread.start()
+# Only start the thread if the bot token is available
+if os.getenv('DISCORD_BOT_TOKEN'):
+    discord_thread = threading.Thread(target=start_discord_bot)
+    discord_thread.daemon = True 
+    discord_thread.start()
+else:
+    print("WARNING: DISCORD_BOT_TOKEN is not set. Discord bot thread skipped.")
 
 
-# --- FLASK WEB SERVER ROUTES ---
-
-# Replace with your actual external links
-EXTERNAL_LINKS = [
-    {"name": "Guestbook (House Rules)", "url": "#"},
-    {"name": "Utility Shed (!commands)", "url": "#"},
-    {"name": "Invite a Friend", "url": "#"},
-]
-
-def get_discord_invite_link():
-    """Dummy function to provide a mock invite link for the template."""
-    # In a real app, this would be retrieved dynamically if available, or just a known link
-    return "https://discord.gg/your-invite-link"
+# --- FLASK ROUTES ---
 
 @app.route('/')
-def home():
-    """The public landing page for the Hangout."""
-    
-    # Check if the bot is ready
-    if bot.is_ready():
-        status_text = "Online and Cozy"
-        status_color = "bg-green-500"
-    else:
-        status_text = "Tuning In..."
-        status_color = "bg-yellow-500"
-        
-    invite_link = get_discord_invite_link()
-
+def index():
+    """
+    Renders the public-facing landing page for the Aura (Treehouse Hangout) Bot.
+    """
+    # Using Tailwind-like classes and custom CSS variables for styling
     html_content = f"""
     <!DOCTYPE html>
     <html lang="en">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>The Treehouse Hangout</title>
-        <!-- Load Tailwind CSS -->
+        <title>Aura Bot - Treehouse Hangout</title>
+        <!-- Load Tailwind CSS via CDN -->
         <script src="https://cdn.tailwindcss.com"></script>
+        <!-- Custom Styling for the "Treehouse Hangout" vibe -->
         <style>
             :root {{
-                --background-color: #1a1a2e; /* Dark, cozy night sky */
-                --text-color: #e0e0f0; /* Soft light text */
-                --primary-color: #a8dadc; /* Soft cyan/mint for highlights */
-                --primary-action: #457b9d; /* Deeper blue for main buttons */
-                --danger-color: #e63946; /* Red for warnings/bans */
-                --font-inter: 'Inter', sans-serif;
+                --primary-color: #6D9C8D; /* Soft Green/Mint */
+                --secondary-color: #F7E7CD; /* Cream/Beige */
+                --danger-color: #E63946; /* Soft Red */
+                --font-family: 'Inter', sans-serif;
             }}
             body {{
-                font-family: var(--font-inter);
-                background-color: var(--background-color);
-                color: var(--text-color);
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                min-height: 100vh;
-                padding: 1rem;
+                font-family: var(--font-family);
+                background-color: #1a202c; /* Dark background */
+                color: #e2e8f0; /* Light text */
             }}
             .card {{
-                background-color: rgba(36, 36, 58, 0.8); /* Darker, transparent base for card */
-                backdrop-filter: blur(5px);
-                border: 2px solid var(--primary-color);
-                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.5);
+                background-color: #2D3748; /* Slightly lighter dark card */
+                box-shadow: 0 10px 15px rgba(0, 0, 0, 0.5);
+                border: 1px solid #4A5568;
             }}
-            .btn-primary {{
-                background-color: var(--primary-action);
-                transition: background-color 0.2s;
+            .btn {{
+                background-color: var(--primary-color);
+                color: #1a202c;
+                transition: background-color 0.3s;
             }}
-            .btn-primary:hover {{
-                background-color: #2a5a75;
+            .btn:hover {{
+                background-color: #8EB8AD;
             }}
         </style>
     </head>
-    <body>
-        <div class="card p-8 sm:p-10 max-w-lg w-full rounded-xl space-y-8">
+    <body class="flex items-center justify-center min-h-screen p-4">
+        <div class="card w-full max-w-lg p-8 rounded-xl space-y-8">
             
-            <!-- Header & Status -->
-            <div class="text-center space-y-3">
-                <h1 class="text-4xl font-extrabold text-[var(--primary-action)] tracking-tight">
-                    THE TREEHOUSE HANGOUT
-                </h1>
-                <p class="text-xl text-gray-300">
-                    Your personal space to chill and connect.
+            <!-- Header -->
+            <header class="text-center space-y-2">
+                <h1 class="text-4xl font-extrabold text-white">🌳 Aura Bot</h1>
+                <p class="text-xl font-light text-gray-400">The Caretaker of your Treehouse Hangout</p>
+                <div class="inline-block p-2 bg-gray-700 rounded-lg text-sm font-mono text-gray-300">
+                    Prefix: <span class="text-var(--primary-color)">!</span>
+                </div>
+            </header>
+
+            <hr class="border-gray-700">
+
+            <!-- Description -->
+            <section class="space-y-4 text-center">
+                <h2 class="text-2xl font-semibold text-white">What I Do</h2>
+                <p class="text-gray-400">
+                    I am here to ensure your cozy, friends-only server remains a safe and chill space. I handle quiet moderation,
+                    track essential activity metrics, and help set the atmosphere with the **!vibe** command.
                 </p>
-                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium {status_color} text-white">
-                    <svg class="w-2 h-2 mr-1.5" fill="currentColor" viewBox="0 0 8 8">
-                        <circle cx="4" cy="4" r="3" />
-                    </svg>
-                    Aura Status: {status_text}
-                </span>
-            </div>
+                <p class="text-gray-400">
+                    Think of me as your gentle Co-Host, keeping the vibes immaculate and the spam out.
+                </p>
+            </section>
 
-            <!-- Join Button -->
-            <div class="text-center">
-                <a href="{invite_link}" target="_blank" class="btn-primary inline-flex items-center justify-center w-full sm:w-auto px-6 py-3 border border-transparent text-base font-medium rounded-lg shadow-lg text-white hover:shadow-xl transition duration-150 ease-in-out">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20v-2c0-.656-.126-1.283-.356-1.857M17 20h-2m0 0h-2M4 12v-2a3 3 0 014-3h10a3 3 0 014 3v2m-19 2h2.238l.608 1.127a1 1 0 001.764 0l.608-1.127H20M5 16h14" />
-                    </svg>
-                    Climb Up to the Treehouse!
-                </a>
-            </div>
+            <!-- Key Commands Highlight -->
+            <section class="p-4 bg-gray-800 rounded-lg space-y-3">
+                <h3 class="text-xl font-semibold text-center text-white">Quick Access</h3>
+                <div class="space-y-2">
+                    <p class="font-mono bg-gray-900 p-2 rounded-md text-sm">
+                        <span class="text-var(--primary-color)">!vibe</span> [topic] - Set the mood with a fun, AI-generated response.
+                    </p>
+                    <p class="font-mono bg-gray-900 p-2 rounded-md text-sm">
+                        <span class="text-var(--primary-color)">!flag</span> @Guest [reason] - Discreetly report a concern to staff.
+                    </p>
+                    <a href="/admin" class="block btn text-center py-2 px-4 rounded-lg font-bold">
+                        Staff: View Caretaker Log
+                    </a>
+                </div>
+            </section>
+            
+            <hr class="border-gray-700">
 
-            <!-- Quick Links -->
-            <div class="pt-4">
-                <h3 class="text-lg font-semibold border-b border-gray-700 pb-2 mb-4 text-gray-200">Quick Links</h3>
-                <ul class="space-y-2">
-                    {[
-                        (link for link in EXTERNAL_LINKS) 
-                    ].map(link => `
-                        <li>
-                            <a href="${link.url}" target="_blank" class="flex items-center text-gray-400 hover:text-[var(--primary-color)] transition">
-                                <span class="mr-2 text-[var(--primary-color)]">•</span>
-                                ${link.name}
-                            </a>
-                        </li>
-                    `).join('')}
+            <!-- Social Links -->
+            <div class="space-y-4">
+                <p class="text-center text-gray-500 font-medium">Find the Community:</p>
+                <ul class="flex justify-center space-x-6 text-xl">
+                    <!-- Dynamic Links Block - CORRECTED PYTHON SYNTAX -->
+                    {'\n'.join([
+                        f"<li><a href='{url}' target='_blank' class='hover:text-[var(--primary-color)] transition'>{name}</a></li>"
+                        for name, url in DISCORD_SOCIAL_LINKS
+                    ])}
                 </ul>
             </div>
 
@@ -158,9 +160,13 @@ def home():
 
             <!-- Legal and Important Notice -->
             <div class="text-center text-sm text-gray-500 space-y-2">
-                <p class="text-gray-400 font-bold">Aura (The Caretaker) is running the server operations.</p>
+                <p class="text-red-400 font-bold">⚠️ AGE RESTRICTION: ALL PLATFORMS ARE STRICTLY 18+</p>
+                <p>
+                    <a href="#" target="_blank" class="hover:text-[var(--danger-color)] transition">Privacy Policy</a> | 
+                    <a href="#" target="_blank" class="hover:text-[var(--danger-color)] transition">Terms of Service</a>
+                </p>
                 <!-- Admin link is discreetly placed for staff access -->
-                <p>Host Access: <a href="/admin" class="hover:text-[var(--primary-action)] transition text-gray-600 font-medium border-b border-dotted border-gray-600">Caretaker Log-in</a></p>
+                <p>Staff: <a href="/admin" class="hover:text-[var(--danger-color)] transition text-gray-600 font-medium border-b border-dotted border-gray-600">Admin Portal Login</a></p>
             </div>
             
         </div>
@@ -171,9 +177,11 @@ def home():
     return render_template_string(html_content)
 
 if __name__ == '__main__':
-    # This block is for local testing only
+    # This block is for local testing only (Gunicorn ignores this in production).
     if os.getenv('DISCORD_BOT_TOKEN'):
         print("Running Flask server locally...")
         app.run(host='0.0.0.0', port=os.environ.get('PORT', 5000))
     else:
-        print("ERROR: DISCORD_BOT_TOKEN not set. Cannot start bot thread.")
+        # Run without bot thread if token is missing (for local dev/testing the web part)
+        print("Running Flask server locally without Discord bot (DISCORD_BOT_TOKEN missing).")
+        app.run(host='0.0.0.0', port=os.environ.get('PORT', 5000))
